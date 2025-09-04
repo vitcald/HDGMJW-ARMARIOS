@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Armários Hospitalares</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        .locker-free        { background-color: #ecfdf5; border-color: #10b981; }
+        .locker-occupied    { background-color: #fef2f2; border-color: #ef4444; }
+        .locker-defective   { background-color: #fef3c7; border-color: #f59e0b; }
+        .btn-primary        { background-color: #3b82f6; }
+        .btn-danger         { background-color: #ef4444; }
+        .btn-success        { background-color: #10b981; }
+        .btn-warning        { background-color: #f59e0b; }
+        .btn-secondary      { background-color: #6b7280; }
+        .admin-panel        { background-color: #f3f4f6; border-left: 4px solid #3b82f6; }
+        [hidden]            { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+    <!-- Admin Login Modal -->
+    <div id="login-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 class="text-2xl font-bold mb-4">Acesso</h2>
+            <form id="login-form">
+                <div class="mb-4">
+                    <label class="block text-gray-700 mb-2">Usuário</label>
+                    <input id="username" type="text" class="w-full px-3 py-2 border rounded" required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 mb-2">Senha</label>
+                    <input id="password" type="password" class="w-full px-3 py-2 border rounded" required>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal('login-modal')" class="px-4 py-2 border rounded">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Entrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Secret Admin Panel -->
+    <div id="secret-admin-panel" class="admin-panel fixed top-0 right-0 h-full w-80 p-6 shadow-lg z-40 hidden">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold text-blue-800">Painel Super Admin</h2>
+            <button onclick="toggleAdminPanel()" class="text-gray-500 hover:text-gray-700">
+                <i data-feather="x"></i>
+            </button>
+        </div>
+
+        <div id="user-info" class="bg-white p-3 rounded-lg shadow mb-4">
+            <div class="flex items-center">
+                <i data-feather="user" class="text-blue-600 mr-2"></i>
+                <div>
+                    <p class="font-medium" id="logged-user-name">Não logado</p>
+                    <p class="text-xs text-gray-500" id="logged-user-type">Faça login para acessar</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            <div>
+                <h3 class="font-medium mb-2">Gerenciar Administradores</h3>
+                <button onclick="openAddAdminModal()" class="w-full bg-blue-600 text-white py-2 px-4 rounded mb-2">
+                    Adicionar Administrador
+                </button>
+                <div id="admin-list" class="mt-2 space-y-2 max-h-40 overflow-y-auto"></div>
+            </div>
+
+            <div>
+                <h3 class="font-medium mb-2">Gerenciar Armários</h3>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <button onclick="openAddMultipleLockersModal()" class="bg-green-600 text-white py-2 px-4 rounded text-sm">
+                        Adicionar Múltiplos
+                    </button>
+                    <button onclick="openRemoveLockersModal()" class="bg-red-600 text-white py-2 px-4 rounded text-sm">
+                        Remover Armários
+                    </button>
+                </div>
+                <div class="mb-2">
+                    <label class="block text-sm text-gray-700 mb-1">Reiniciar Numeração</label>
+                    <div class="flex space-x-2">
+                        <input id="renumber-start" type="number" min="1" placeholder="Início" class="flex-1 px-2 py-1 border rounded text-sm">
+                        <button onclick="renumberLockers()" class="bg-blue-600 text-white py-1 px-3 rounded text-sm">
+                            Aplicar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="font-medium mb-2">Relatórios</h3>
+                <button onclick="generateReport('daily')" class="w-full bg-purple-600 text-white py-2 px-4 rounded mb-2 text-sm">
+                    Relatório Diário
+                </button>
+                <button onclick="generateReport('weekly')" class="w-full bg-purple-600 text-white py-2 px-4 rounded mb-2 text-sm">
+                    Relatório Semanal
+                </button>
+                <button onclick="generateReport('monthly')" class="w-full bg-purple-600 text-white py-2 px-4 rounded mb-2 text-sm">
+                    Relatório Mensal
+                </button>
+            </div>
+
+            <div>
+                <h3 class="font-medium mb-2">Sistema</h3>
+                <button onclick="exportData()" class="w-full bg-gray-600 text-white py-2 px-4 rounded mb-2 text-sm">
+                    Exportar Dados
+                </button>
+                <button onclick="importData()" class="w-full bg-gray-600 text-white py-2 px-4 rounded text-sm">
+                    Importar Dados
+                </button>
+                <button onclick="logout()" class="w-full bg-red-600 text-white py-2 px-4 rounded text-sm mt-2">
+                    Sair
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div class="container mx-auto px-4 py-8">
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-blue-800">Controle de Armários</h1>
+                <p class="text-gray-600">Gestão hospitalar de armários</p>
+            </div>
+
+            <div class="flex space-x-4 items-center">
+                <!-- Botão Sair - visível apenas quando logado -->
+                <button id="logout-button" onclick="logout()" class="hidden bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
+                    <i data-feather="log-out" class="inline mr-2"></i>Sair
+                </button>
+
+                <!-- Indicador de status de login -->
+                <div id="login-status" class="hidden mr-4 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+                    <i data-feather="user" class="inline mr-1 w-4 h-4"></i>
+                    <span id="login-status-text">Logado</span>
+                </div>
+
+                <div class="relative group">
+                    <button onclick="openModal('login-modal')" id="access-button" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                        <i data-feather="lock" class="inline mr-2"></i>Acesso
+                    </button>
+                    <div id="admin-menu" class="hidden absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50">
+                        <a href="#" onclick="openRegisterModal()" class="block px-4 py-2 text-gray-800 hover:bg-blue-100">
+                            <i data-feather="user-plus" class="inline mr-2"></i>Acesso Admin
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-gray-700 mb-2">Status</label>
+                    <select id="status-filter" class="w-full px-3 py-2 border rounded">
+                        <option value="all">Todos</option>
+                        <option value="free">Livre</option>
+                        <option value="occupied">Ocupado</option>
+                        <option value="defective">Com Defeito</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-gray-700 mb-2">Número</label>
+                    <input type="text" id="number-filter" placeholder="Número do armário" class="w-full px-3 py-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-gray-700 mb-2">Paciente</label>
+                    <input type="text" id="patient-filter" placeholder="Nome do paciente" class="w-full px-3 py-2 border rounded">
+                </div>
+                <div class="flex items-end">
+                    <button onclick="applyFilters()" class="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+                        Filtrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lockers Grid -->
+        <div id="lockers-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Locker cards will be loaded here -->
+        </div>
+    </div>
+
+    <script>
+        /* ---------- BANCO DE DADOS ---------- */
+        let lockers = JSON.parse(localStorage.getItem('hospital-lockers')) || [];
+        let admins  = JSON.parse(localStorage.getItem('hospital-admins')) || [];
+        let reports = JSON.parse(localStorage.getItem('hospital-reports')) || [];
+        let currentAdmin = null;
+
+        /* ---------- INICIALIZAÇÃO ---------- */
+        document.addEventListener('DOMContentLoaded', function () {
+            feather.replace();
+            renderLockers();
+            updateLoginUI();
+            initDefaultAdmin();
+            initReportSystem();
+        });
+
+        function initDefaultAdmin() {
+            if (admins.length === 0) {
+                admins.push({
+                    username: 'admin',
+                    password: 'admin123',
+                    name: 'Administrador Padrão',
+                    isSuperAdmin: true
+                });
+                saveAdmins();
+            }
+        }
+
+        function initReportSystem() {
+            if (!localStorage.getItem('hospital-reports')) {
+                localStorage.setItem('hospital-reports', JSON.stringify([]));
+            }
+        }
+
+        /* ---------- LOGIN ---------- */
+        document.getElementById('login-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            if (username === 'EPUSER' && password === 'USEREP') {
+                currentAdmin = { name: 'Super Admin', isSuperAdmin: true };
+                closeModal('login-modal');
+                updateLoginUI();
+                toggleAdminPanel();
+                Swal.fire('Acesso especial', 'Painel super admin ativado', 'success');
+                return;
+            }
+
+            const admin = admins.find(a => a.username === username && a.password === password);
+            if (admin) {
+                currentAdmin = admin;
+                closeModal('login-modal');
+                updateLoginUI();
+                Swal.fire('Sucesso', `Você está logado como ${admin.name}`, 'success');
+            } else {
+                Swal.fire('Erro', 'Credenciais inválidas', 'error');
+            }
+        });
+
+        /* ---------- FUNÇÕES AUXILIARES ---------- */
+        function openModal(id)  { document.getElementById(id).classList.remove('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+        function updateLoginUI() {
+            const loginStatus      = document.getElementById('login-status');
+            const loginStatusText  = document.getElementById('login-status-text');
+            const loggedUserName   = document.getElementById('logged-user-name');
+            const loggedUserType   = document.getElementById('logged-user-type');
+            const logoutButton     = document.getElementById('logout-button');
+            const accessButton     = document.getElementById('access-button');
+
+            if (currentAdmin) {
+                loginStatus.classList.remove('hidden');
+                loginStatusText.textContent = currentAdmin.name;
+                loggedUserName.textContent  = currentAdmin.name;
+                loggedUserType.textContent  = currentAdmin.isSuperAdmin ? 'Super Administrador' : 'Administrador';
+                logoutButton.classList.remove('hidden');
+                accessButton.classList.add('hidden');
+            } else {
+                loginStatus.classList.add('hidden');
+                loggedUserName.textContent = 'Não logado';
+                loggedUserType.textContent = 'Faça login para acessar';
+                logoutButton.classList.add('hidden');
+                accessButton.classList.remove('hidden');
+            }
+            feather.replace();
+        }
+
+        function toggleAdminPanel() {
+            const panel = document.getElementById('secret-admin-panel');
+            panel.classList.toggle('hidden');
+            loadAdminList();
+            updateLoginUI();
+        }
+
+        function logout() {
+            currentAdmin = null;
+            updateLoginUI();
+            // Fecha o painel admin se estiver aberto
+            const panel = document.getElementById('secret-admin-panel');
+            if (!panel.classList.contains('hidden')) {
+                panel.classList.add('hidden');
+            }
+            Swal.fire('Logout', 'Você saiu do sistema', 'info');
+        }
+
+        /* ---------- RENDERIZAÇÃO ---------- */
+        function renderLockers(filteredLockers = null) {
+            const container = document.getElementById('lockers-container');
+            const data = filteredLockers || lockers;
+
+            if (data.length === 0) {
+                container.innerHTML = '<div class="col-span-full text-center py-12 text-gray-500">Nenhum armário cadastrado</div>';
+                return;
+            }
+
+            container.innerHTML = data.map(locker => {
+                const statusClass = locker.status === 'free' ? 'locker-free' :
+                                    locker.status === 'defective' ? 'locker-defective' : 'locker-occupied';
+                const statusLabel = locker.status === 'free' ? 'LIVRE' :
+                                    locker.status === 'defective' ? 'COM DEFEITO' : 'OCUPADO';
+                const statusColor = locker.status === 'free' ? 'bg-green-100 text-green-800' :
+                                    locker.status === 'defective' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
+
+                return `
+                <div class="border rounded-lg p-4 ${statusClass}">
+                    <div class="flex justify-between items-start mb-3">
+                        <h3 class="text-xl font-bold">Armário ${locker.number}</h3>
+                        <span class="px-2 py-1 rounded text-xs ${statusColor}">${statusLabel}</span>
+                    </div>
+
+                    ${locker.status === 'occupied' ? `
+                        <div class="mb-3">
+                            <h4 class="font-medium">Paciente</h4>
+                            <p>${locker.patientName || 'N/D'} (Leito ${locker.bed || 'N/D'})</p>
+                            <h4 class="font-medium mt-2">Responsável</h4>
+                            <p>${locker.responsibleName || 'N/D'}</p>
+                            <p class="text-sm">${locker.responsibleDocument || ''}</p>
+                            <p class="text-sm">${locker.responsiblePhone || ''}</p>
+                        </div>
+                        <div class="text-xs text-gray-500 mb-3">
+                            <p>Ocupado em: ${formatDate(locker.occupiedAt)}</p>
+                            ${locker.lastTransferAt ? `<p>Última transf.: ${formatDate(locker.lastTransferAt)}</p>` : ''}
+                        </div>
+                    ` : ''}
+
+                    ${locker.status === 'defective' && locker.defectDescription ? `
+                        <div class="mb-3">
+                            <h4 class="font-medium text-yellow-800">Defeito</h4>
+                            <p class="text-sm">${locker.defectDescription}</p>
+                        </div>
+                    ` : ''}
+
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        ${locker.status === 'free' ? `
+                            <button onclick="handleLockerAction('${locker.id}', 'occupy')" class="btn-success text-white py-1 px-2 rounded text-sm">
+                                Ocupar
+                            </button>
+                        ` : locker.status === 'occupied' ? `
+                            <button onclick="handleLockerAction('${locker.id}', 'release')" class="btn-danger text-white py-1 px-2 rounded text-sm">
+                                Liberar
+                            </button>
+                        ` : ''}
+
+                        <button onclick="showLockerDetails('${locker.id}')" class="bg-gray-200 hover:bg-gray-300 py-1 px-2 rounded text-sm">
+                            Detalhes
+                        </button>
+                    </div>
+
+                    <button onclick="toggleDefect('${locker.id}')" class="w-full btn-warning text-white py-1 px-2 rounded text-sm mt-1">
+                        ${locker.status === 'defective' ? 'Remover Defeito' : 'Sinalizar Defeito'}
+                    </button>
+                </div>`;
+            }).join('');
+            feather.replace();
+        }
+
+        /* ---------- SALVAR DADOS ---------- */
+        function saveData()  { localStorage.setItem('hospital-lockers', JSON.stringify(lockers)); }
+        function saveAdmins() { localStorage.setItem('hospital-admins', JSON.stringify(admins)); }
+        function saveReports() { localStorage.setItem('hospital-reports', JSON.stringify(reports)); }
+
+        function formatDate(dateString) {
+            return dateString ? new Date(dateString).toLocaleString('pt-BR') : 'N/D';
+        }
+
+        /* ---------- ARMAZÉNS ---------- */
+        function addLocker(number) {
+            if (lockers.some(l => l.number === number)) {
+                Swal.fire('Erro', 'Armário já existe', 'error');
+                return;
+            }
+            lockers.push({
+                id: Date.now().toString(),
+                number,
+                status: 'free',
+                createdAt: new Date().toISOString(),
+                history: []
+            });
+            saveData();
+            renderLockers();
+            Swal.fire('Sucesso', `Armário ${number} adicionado`, 'success');
+        }
+
+        function addMultipleLockers(start, end) {
+            const newLockers = [];
+            for (let i = start; i <= end; i++) {
+                if (!lockers.some(l => l.number === i.toString())) {
+                    newLockers.push({
+                        id: Date.now().toString() + i,
+                        number: i.toString(),
+                        status: 'free',
+                        createdAt: new Date().toISOString(),
+                        history: []
+                    });
+                }
+            }
+            lockers.push(...newLockers);
+            saveData();
+            renderLockers();
+            Swal.fire('Sucesso', `${newLockers.length} armários adicionados`, 'success');
+        }
+
+        function removeLockersByRange(start, end) {
+            const initial = lockers.length;
+            lockers = lockers.filter(l => {
+                const n = parseInt(l.number);
+                return isNaN(n) || n < start || n > end;
+            });
+            saveData();
+            renderLockers();
+            Swal.fire('Sucesso', `${initial - lockers.length} armários removidos`, 'success');
+        }
+
+        function renumberLockers() {
+            const start = parseInt(document.getElementById('renumber-start').value) || 1;
+            if (start < 1) return Swal.fire('Erro', 'Número inválido', 'error');
+            lockers.sort((a, b) => parseInt(a.number) - parseInt(b.number));
+            lockers.forEach((l, i) => l.number = (start + i).toString());
+            saveData();
+            renderLockers();
+            Swal.fire('Sucesso', 'Numeração atualizada', 'success');
+        }
+
+        /* ---------- DEFEITOS ---------- */
+        function toggleDefect(lockerId) {
+            const locker = lockers.find(l => l.id === lockerId);
+            if (!locker) return;
+
+            if (locker.status === 'defective') {
+                locker.status = 'free';
+                locker.defectDescription = null;
+                addToHistory(lockerId, 'Defeito removido');
+                saveData();
+                renderLockers();
+                Swal.fire('Sucesso', 'Defeito removido', 'success');
+            } else {
+                Swal.fire({
+                    title: 'Descreva o defeito',
+                    input: 'textarea',
+                    inputPlaceholder: 'Ex: porta não fecha, chave não gira...',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sinalizar'
+                }).then(result => {
+                    if (result.isConfirmed) {
+                        locker.status = 'defective';
+                        locker.defectDescription = result.value;
+                        ['patientName','bed','responsibleName','responsibleDocument','responsiblePhone','occupiedAt','lastTransferAt'].forEach(k => locker[k] = null);
+                        addToHistory(lockerId, `Defeito sinalizado: ${result.value}`);
+                        saveData();
+                        renderLockers();
+                        Swal.fire('Sucesso', 'Defeito sinalizado', 'success');
+                    }
+                });
+            }
+        }
+
+        /* ---------- HISTÓRICO ---------- */
+        function addToHistory(lockerId, action) {
+            const locker = lockers.find(l => l.id === lockerId);
+            if (!locker.history) locker.history = [];
+            locker.history.unshift({
+                action: action,
+                date: new Date().toISOString(),
+                admin: currentAdmin?.name || 'Sistema'
+            });
+        }
+
+        /* ---------- OCUPAÇÃO / LIBERAÇÃO ---------- */
+        function occupyLocker(lockerId, data) {
+            const locker = lockers.find(l => l.id === lockerId);
+            if (!locker) return;
+
+            Object.assign(locker, {
+                status: 'occupied',
+                patientName: data.patientName,
+                bed: data.bed,
+                responsibleName: data.responsibleName,
+                responsibleDocument: data.responsibleDocument,
+                responsiblePhone: data.responsiblePhone,
+                occupiedAt: new Date().toISOString()
+            });
+            addToHistory(lockerId, `Armário ocupado - Paciente: ${data.patientName}, Leito: ${data.bed}`);
+            saveData();
+            renderLockers();
+            Swal.fire('Sucesso', 'Armário ocupado', 'success');
+        }
+
+        function releaseLocker(lockerId) {
+            const locker = lockers.find(l => l.id === lockerId);
+            if (!locker) return;
+
+            const patientName = locker.patientName || 'N/D';
+            locker.status = 'free';
+            locker.releasedAt = new Date().toISOString();
+            addToHistory(lockerId, `Armário liberado - Paciente: ${patientName}`);
+            ['patientName','bed','responsibleName','responsibleDocument','responsiblePhone','occupiedAt','lastTransferAt'].forEach(k => locker[k] = null);
+            saveData();
+            renderLockers();
+            Swal.fire('Sucesso', 'Armário liberado', 'success');
+        }
+
+        function transferLocker(lockerId, newResp) {
+            const locker = lockers.find(l => l.id === lockerId);
+            if (!locker) return;
+
+            const oldResponsible = locker.responsibleName || 'N/D';
+            Object.assign(locker, {
+                responsibleName: newResp.name,
+                responsibleDocument: newResp.document,
+                responsiblePhone: newResp.phone,
+                lastTransferAt: new Date().toISOString()
+            });
+            addToHistory(lockerId, `Transferência de responsável - De: ${oldResponsible} Para: ${newResp.name}`);
+            saveData();
+            renderLockers();
+            Swal.fire('Sucesso', 'Responsável atualizado', 'success');
+        }
+
+        /* ---------- ADMINISTRADORES ---------- */
+        function loadAdminList() {
+            const list = document.getElementById('admin-list');
+            list.innerHTML = admins.map(a => `
+                <div class="flex justify-between items-center p-2 bg-white rounded border">
+                    <div>
+                        <div class="font-medium">${a.name}</div>
+                        <div class="text-xs text-gray-500">${a.username}</div>
+                    </div>
+                    ${a.isSuperAdmin
+                        ? '<span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Super</span>'
+                        : `<button onclick="removeAdmin('${a.username}')" class="text-red-600 text-xs">Remover</button>`}
+                </div>`).join('');
+        }
+
+        function addAdmin({name, username, password}) {
+            if (admins.some(a => a.username === username))
+                return Swal.fire('Erro', 'Usuário já existe', 'error');
+            admins.push({name, username, password, isSuperAdmin: false});
+            saveAdmins();
+            loadAdminList();
+            Swal.fire('Sucesso', 'Administrador adicionado', 'success');
+        }
+
+        function removeAdmin(username) {
+            admins = admins.filter(a => a.username !== username);
+            saveAdmins();
+            loadAdminList();
+            Swal.fire('Sucesso', 'Administrador removido', 'success');
+        }
+
+        /* ---------- RELATÓRIOS ---------- */
+        function generateReport(type) {
+            const now = new Date();
+            let startDate, endDate, title;
+
+            switch(type) {
+                case 'daily':
+                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                    title = 'Relatório Diário';
+                    break;
+                case 'weekly':
+                    const weekStart = new Date(now);
+                    weekStart.setDate(now.getDate() - now.getDay());
+                    startDate = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate());
+                    endDate = new Date(startDate);
+                    endDate.setDate(startDate.getDate() + 7);
+                    title = 'Relatório Semanal';
+                    break;
+                case 'monthly':
+                    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                    title = 'Relatório Mensal';
+                    break;
+            }
+
+            const reportData = generateReportData(startDate, endDate);
+            displayReport(reportData, title, startDate, endDate);
+        }
+
+        function generateReportData(startDate, endDate) {
+            const report = {
+                period: { start: startDate, end: endDate },
+                totalLockers: lockers.length,
+                occupied: 0,
+                free: 0,
+                defective: 0,
+                movements: [],
+                transfers: 0,
+                releases: 0,
+                occupancies: 0
+            };
+
+            lockers.forEach(locker => {
+                switch(locker.status) {
+                    case 'occupied': report.occupied++; break;
+                    case 'free': report.free++; break;
+                    case 'defective': report.defective++; break;
+                }
+
+                if (locker.history) {
+                    locker.history.forEach(entry => {
+                        const entryDate = new Date(entry.date);
+                        if (entryDate >= startDate && entryDate < endDate) {
+                            report.movements.push({
+                                locker: locker.number,
+                                action: entry.action,
+                                date: entry.date,
+                                admin: entry.admin
+                            });
+
+                            if (entry.action.includes('ocupado')) report.occupancies++;
+                            else if (entry.action.includes('liberado')) report.releases++;
+                            else if (entry.action.includes('Transferência')) report.transfers++;
+                        }
+                    });
+                }
+            });
+
+            return report;
+        }
+
+        function displayReport(data, title, startDate, endDate) {
+            let html = `
+                <div class="text-left">
+                    <h3 class="text-lg font-bold mb-2">${title}</h3>
+                    <p class="text-sm text-gray-600 mb-4">Período: ${startDate.toLocaleDateString('pt-BR')} - ${new Date(data.period.end - 1).toLocaleDateString('pt-BR')}</p>
+
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="bg-blue-50 p-3 rounded">
+                            <p class="text-sm font-medium">Total de Armários</p>
+                            <p class="text-2xl font-bold">${data.totalLockers}</p>
+                        </div>
+                        <div class="bg-green-50 p-3 rounded">
+                            <p class="text-sm font-medium">Livres</p>
+                            <p class="text-2xl font-bold">${data.free}</p>
+                        </div>
+                        <div class="bg-red-50 p-3 rounded">
+                            <p class="text-sm font-medium">Ocupados</p>
+                            <p class="text-2xl font-bold">${data.occupied}</p>
+                        </div>
+                        <div class="bg-yellow-50 p-3 rounded">
+                            <p class="text-sm font-medium">Com Defeito</p>
+                            <p class="text-2xl font-bold">${data.defective}</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <h4 class="font-medium mb-2">Movimentações (${data.movements.length})</h4>
+                        <p class="text-sm">Ocupações: ${data.occupancies} | Liberações: ${data.releases} | Transferências: ${data.transfers}</p>
+                    </div>`;
+
+            if (data.movements.length > 0) {
+                html += `<div class="max-h-64 overflow-y-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b">
+                                <th class="text-left">Armário</th>
+                                <th class="text-left">Ação</th>
+                                <th class="text-left">Data/Hora</th>
+                                <th class="text-left">Responsável</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+                data.movements.forEach(move => {
+                    html += `
+                        <tr class="border-b">
+                            <td>${move.locker}</td>
+                            <td>${move.action}</td>
+                            <td>${new Date(move.date).toLocaleString('pt-BR')}</td>
+                            <td>${move.admin}</td>
+                        </tr>`;
+                });
+
+                html += `</tbody></table></div>`;
+            } else {
+                html += `<p class="text-gray-500 text-sm">Nenhuma movimentação no período</p>`;
+            }
+
+            html += `</div>`;
+
+            Swal.fire({
+                title: title,
+                html: html,
+                width: '800px',
+                showConfirmButton: true,
+                confirmButtonText: 'Exportar PDF',
+                showCancelButton: true,
+                cancelButtonText: 'Fechar'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    exportReportToPDF(data, title);
+                }
+            });
+        }
+
+        function exportReportToPDF(reportData, title) {
+            const content = `
+                RELATÓRIO DE ARMÁRIOS HOSPITALARES
+                ${title}
+
+                Período: ${reportData.period.start.toLocaleDateString('pt-BR')} - ${new Date(reportData.period.end - 1).toLocaleDateString('pt-BR')}
+
+                RESUMO:
+                Total de Armários: ${reportData.totalLockers}
+                Livres: ${reportData.free}
+                Ocupados: ${reportData.occupied}
+                Com Defeito: ${reportData.defective}
+
+                MOVIMENTAÇÕES:
+                Ocupações: ${reportData.occupancies}
+                Liberações: ${reportData.releases}
+                Transferências: ${reportData.transfers}
+
+                DETALHES:`;
+
+            let details = '';
+            reportData.movements.forEach(move => {
+                details += `\n${move.locker} - ${move.action} - ${new Date(move.date).toLocaleString('pt-BR')} - ${move.admin}`;
+            });
+
+            const fullContent = content + (details || '\nNenhuma movimentação no período');
+
+            const blob = new Blob([fullContent], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${title.toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        /* ---------- MODAIS E FUNÇÕES ADICIONAIS ---------- */
+        function openAddMultipleLockersModal() {
+            Swal.fire({
+                title: 'Adicionar múltiplos',
+                html: `<input type="number" id="locker-start" class="swal2-input" placeholder="Início" min="1">
+                       <input type="number" id="locker-end"   class="swal2-input" placeholder="Fim"   min="1">`,
+                showCancelButton: true,
+                confirmButtonText: 'Adicionar',
+                preConfirm: () => ({
+                    start: parseInt(document.getElementById('locker-start').value),
+                    end:   parseInt(document.getElementById('locker-end').value)
+                })
+            }).then(r => { if (r.isConfirmed) addMultipleLockers(r.value.start, r.value.end); });
+        }
+
+        function openRemoveLockersModal() {
+            Swal.fire({
+                title: 'Remover armários',
+                html: `<input type="number" id="remove-start" class="swal2-input" placeholder="Início" min="1">
+                       <input type="number" id="remove-end"   class="swal2-input" placeholder="Fim"   min="1">`,
+                showCancelButton: true,
+                confirmButtonText: 'Remover',
+                preConfirm: () => ({
+                    start: parseInt(document.getElementById('remove-start').value),
+                    end:   parseInt(document.getElementById('remove-end').value)
+                })
+            }).then(r => { if (r.isConfirmed) removeLockersByRange(r.value.start, r.value.end); });
+        }
+
+        function openAddAdminModal() {
+            Swal.fire({
+                title: 'Adicionar administrador',
+                html: `<input id="admin-name"     class="swal2-input" placeholder="Nome completo">
+                       <input id="admin-username" class="swal2-input" placeholder="Usuário">
+                       <input id="admin-password" type="password" class="swal2-input" placeholder="Senha">`,
+                showCancelButton: true,
+                confirmButtonText: 'Adicionar',
+                preConfirm: () => ({
+                    name:     document.getElementById('admin-name').value,
+                    username: document.getElementById('admin-username').value,
+                    password: document.getElementById('admin-password').value
+                })
+            }).then(r => { if (r.isConfirmed) addAdmin(r.value); });
+        }
+
+        function handleLockerAction(lockerId, action) {
+            const locker = lockers.find(l => l.id === lockerId);
+            if (locker.status === 'defective') {
+                Swal.fire('Indisponível', 'Armário está com defeito', 'warning');
+                return;
+            }
+
+            if (action === 'occupy') {
+                Swal.fire({
+                    title: 'Ocupar armário',
+                    html: `
+                        <input id="patient-name"          class="swal2-input" placeholder="Paciente">
+                        <input id="bed"                   class="swal2-input" placeholder="Leito">
+                        <input id="responsible-name"      class="swal2-input" placeholder="Responsável">
+                        <input id="responsible-document"  class="swal2-input" placeholder="CPF/RG">
+                        <input id="responsible-phone"     class="swal2-input" placeholder="Telefone">
+                    `,
+                    showCancelButton: true,
+                    confirmButtonText: 'Registrar',
+                    preConfirm: () => ({
+                        patientName:        document.getElementById('patient-name').value,
+                        bed:                document.getElementById('bed').value,
+                        responsibleName:    document.getElementById('responsible-name').value,
+                        responsibleDocument:document.getElementById('responsible-document').value,
+                        responsiblePhone:   document.getElementById('responsible-phone').value
+                    })
+                }).then(r => { if (r.isConfirmed) occupyLocker(lockerId, r.value); });
+            } else if (action === 'release') {
+                Swal.fire({
+                    title: 'Liberar armário?',
+                    text: `Confirma a liberação do armário ${locker.number}?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sim'
+                }).then(r => { if (r.isConfirmed) releaseLocker(lockerId); });
+            }
+        }
+
+        function showLockerDetails(lockerId) {
+            const locker = lockers.find(l => l.id === lockerId);
+            let html = `<div class="text-left">
+                <p><b>Status:</b> ${locker.status === 'free' ? 'Livre' : locker.status === 'defective' ? 'Com Defeito' : 'Ocupado'}</p>`;
+
+            if (locker.status === 'occupied') {
+                html += `
+                <p><b>Paciente:</b> ${locker.patientName} (Leito ${locker.bed})</p>
+                <p><b>Responsável:</b> ${locker.responsibleName}</p>
+                <p><b>Documento:</b> ${locker.responsibleDocument}</p>
+                <p><b>Telefone:</b> ${locker.responsiblePhone}</p>
+                <p><b>Ocupado em:</b> ${formatDate(locker.occupiedAt)}</p>`;
+            }
+            if (locker.status === 'defective' && locker.defectDescription)
+                html += `<p><b>Defeito:</b> ${locker.defectDescription}</p>`;
+
+            html += '</div>';
+
+            Swal.fire({
+                title: `Armário ${locker.number}`,
+                html,
+                showCancelButton: currentAdmin && locker.status === 'occupied',
+                cancelButtonText: 'Transferir responsável',
+                confirmButtonText: 'Fechar'
+            }).then(res => {
+                if (res.dismiss === Swal.DismissReason.cancel) {
+                    Swal.fire({
+                        title: 'Transferir responsável',
+                        html: `
+                            <input id="new-responsible-name"     class="swal2-input" placeholder="Nome">
+                            <input id="new-responsible-document" class="swal2-input" placeholder="CPF/RG">
+                            <input id="new-responsible-phone"    class="swal2-input" placeholder="Telefone">
+                        `,
+                        showCancelButton: true,
+                        confirmButtonText: 'Transferir',
+                        preConfirm: () => ({
+                            name:    document.getElementById('new-responsible-name').value,
+                            document:document.getElementById('new-responsible-document').value,
+                            phone:   document.getElementById('new-responsible-phone').value
+                        })
+                    }).then(r => { if (r.isConfirmed) transferLocker(lockerId, r.value); });
+                }
+            });
+        }
+
+        function applyFilters() {
+            const status  = document.getElementById('status-filter').value;
+            const numero  = document.getElementById('number-filter').value.toLowerCase();
+            const paciente= document.getElementById('patient-filter').value.toLowerCase();
+
+            let filtered = lockers;
+
+            if (status !== 'all') filtered = filtered.filter(l => l.status === status);
+            if (numero)            filtered = filtered.filter(l => l.number.toLowerCase().includes(numero));
+            if (paciente)          filtered = filtered.filter(l =>
+                (l.patientName && l.patientName.toLowerCase().includes(paciente)) ||
+                (l.bed && l.bed.toLowerCase().includes(paciente)));
+
+            renderLockers(filtered);
+        }
+    </script>
+</body>
+</html>
+```
